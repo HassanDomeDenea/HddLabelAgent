@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HDD Label Agent</title>
+<style>
+:root {
+    --bg: #f3f4f6; --card: #ffffff; --ink: #111827; --muted: #6b7280; --line: #e2e5ea;
+    --accent: #0f766e; --accent-ink: #ffffff; --field: #ffffff; --stage: #cfd4da;
+    --warn-bg: #fef3c7; --warn-ink: #92400e; --bad-bg: #fee2e2; --bad-ink: #991b1b; --ok: #15803d;
+}
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #0f1318; --card: #181d24; --ink: #e5e7eb; --muted: #9ca3af; --line: #2a313b;
+        --accent: #2dd4bf; --accent-ink: #06201d; --field: #11151b; --stage: #2b323c;
+        --warn-bg: #3a2f0b; --warn-ink: #fcd34d; --bad-bg: #3b1414; --bad-ink: #fca5a5; --ok: #4ade80;
+    }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 "Segoe UI", Tahoma, system-ui, sans-serif; }
+header { display: flex; align-items: center; gap: 12px; padding: 10px 20px; background: var(--card); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; flex-wrap: wrap; }
+header h1 { font-size: 17px; margin: 0; font-weight: 600; }
+.grow { flex: 1; }
+.pill { font-size: 12px; padding: 3px 10px; border-radius: 999px; background: var(--bg); color: var(--muted); white-space: nowrap; }
+.pill.ok { color: var(--ok); }
+.pill.bad { background: var(--bad-bg); color: var(--bad-ink); }
+main { display: grid; grid-template-columns: minmax(0, 1fr) 470px; gap: 16px; padding: 16px 20px 48px; max-width: 1220px; margin: 0 auto; align-items: start; }
+aside { position: sticky; top: 64px; display: grid; gap: 16px; }
+@media (max-width: 960px) {
+    main { grid-template-columns: minmax(0, 1fr); }
+    aside { position: static; order: -1; }
+}
+section, .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin: 0 0 16px; }
+aside .card { margin: 0; }
+h2 { font-size: 13px; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
+.fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px 14px; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field.wide { grid-column: 1 / -1; }
+.field.newrow { grid-column-start: 1; }
+.field > span { font-size: 12.5px; color: var(--muted); }
+.field small { color: var(--muted); font-size: 11.5px; }
+.field.check { flex-direction: row; align-items: center; gap: 8px; padding-top: 20px; cursor: pointer; }
+.field.check > span { color: var(--ink); font-size: 14px; }
+input[type=text], input[type=number], select { width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--field); color: var(--ink); font: inherit; }
+input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--accent); flex: none; }
+.unit { display: flex; align-items: center; gap: 6px; }
+.unit em { font-style: normal; color: var(--muted); font-size: 12px; white-space: nowrap; }
+button { font: inherit; padding: 7px 13px; border-radius: 7px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; white-space: nowrap; }
+button:hover:not(:disabled) { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+button:disabled { opacity: .5; cursor: default; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row select { flex: 1; min-width: 160px; width: auto; }
+.stage { background: var(--stage); border-radius: 8px; padding: 16px 12px; display: flex; justify-content: center; align-items: center; min-height: 130px; overflow: hidden; }
+.stage img { display: block; max-width: 100%; height: auto; background: #fff; border-radius: 5px; box-shadow: 0 2px 8px rgba(0, 0, 0, .28); }
+.note { font-size: 12.5px; color: var(--muted); margin: 8px 0 0; }
+.msg { font-size: 13px; padding: 8px 10px; border-radius: 7px; margin: 8px 0 0; }
+.msg.warn { background: var(--warn-bg); color: var(--warn-ink); }
+.msg.bad { background: var(--bad-bg); color: var(--bad-ink); }
+.msg.good { color: var(--ok); padding-inline: 0; }
+ul.sites { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 6px; }
+ul.sites li { display: flex; align-items: center; gap: 8px; padding: 5px 5px 5px 10px; border: 1px solid var(--line); border-radius: 7px; }
+[dir=rtl] ul.sites li { padding: 5px 10px 5px 5px; }
+ul.sites code { flex: 1; direction: ltr; text-align: start; overflow: hidden; text-overflow: ellipsis; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+    <h1 data-t>Label printer</h1>
+    <span id="conn" class="pill"></span>
+    <span class="grow"></span>
+    <span id="state" class="pill"></span>
+    <button id="save" class="primary" disabled data-t>Save</button>
+    <button id="lang"></button>
+</header>
+
+<main>
+    <div>
+        <section>
+            <h2 data-t>Paper profile</h2>
+            <div class="row">
+                <select id="profiles" aria-label="Paper profile"></select>
+                <button id="pUse" data-t>Use for printing</button>
+                <button id="pNew" data-t>New</button>
+                <button id="pRename" data-t>Rename</button>
+                <button id="pDelete" data-t>Delete</button>
+            </div>
+            <p class="note" data-t>One profile per paper size. When the roll changes, pick its profile here or from the icon near the clock.</p>
+        </section>
+
+        <div id="form"></div>
+
+        <section>
+            <h2 data-t>Allowed sites</h2>
+            <ul class="sites" id="sites"></ul>
+            <div class="row">
+                <input type="text" id="siteInput" placeholder="https://shop.example.com" style="flex:1;min-width:200px" dir="ltr">
+                <button id="siteAdd" data-t>Add</button>
+            </div>
+            <p class="note" data-t>Sites that may print through this computer. A new site asks for permission the first time it prints.</p>
+        </section>
+    </div>
+
+    <aside>
+        <div class="card">
+            <h2 data-t>Preview</h2>
+            <div class="stage"><img id="preview" alt=""></div>
+            <p class="note" id="info"></p>
+            <div id="warnings"></div>
+            <div class="row" style="margin-top:12px">
+                <button id="test" class="primary" data-t>Print test label</button>
+                <button id="feed" data-t>Feed blank label</button>
+            </div>
+            <div id="printMsg"></div>
+        </div>
+        <div class="card">
+            <h2 data-t>Sample item</h2>
+            <div class="fields">
+                <label class="field wide"><span data-t>Name</span><input type="text" data-sample="name" dir="auto"></label>
+                <label class="field wide"><span data-t>Barcode</span><input type="text" data-sample="barcode" dir="ltr"></label>
+                <label class="field"><span data-t>Price</span><input type="text" data-sample="price" dir="ltr"></label>
+                <label class="field"><span data-t>Currency</span><input type="text" data-sample="currency" dir="auto"></label>
+            </div>
+        </div>
+    </aside>
+</main>
+
+<script>
+const AR = {
+    'Label printer': 'طابعة الملصقات', 'Save': 'حفظ', 'Saved': 'تم الحفظ', 'Unsaved changes': 'تغييرات غير محفوظة',
+    'Paper profile': 'إعدادات الورق', 'Use for printing': 'استخدمه للطباعة', 'In use': 'مستخدم حالياً',
+    'New': 'جديد', 'Rename': 'إعادة تسمية', 'Delete': 'حذف',
+    'One profile per paper size. When the roll changes, pick its profile here or from the icon near the clock.':
+        'إعداد واحد لكل مقاس ورق. عند تبديل اللفة اختر إعدادها من هنا أو من الأيقونة بجانب الساعة.',
+    'Printer': 'الطابعة', 'Choose a printer': 'اختر طابعة', 'offline': 'غير متصلة', 'not installed': 'غير معرّفة',
+    'Connection': 'طريقة الاتصال', 'Direct (TSPL), recommended': 'مباشر (TSPL)، موصى به', 'Through the Windows driver': 'عبر تعريف ويندوز',
+    'Direct gives the sharpest bars. Use the Windows driver only for printers that do not understand TSPL.':
+        'الاتصال المباشر يعطي أوضح خطوط. استخدم تعريف ويندوز فقط مع الطابعات التي لا تدعم TSPL.',
+    'Darkness': 'درجة السواد', 'Speed': 'السرعة', 'Orientation': 'الاتجاه', 'Normal': 'عادي', 'Rotated 180°': 'مقلوب 180°',
+    'Roll type': 'نوع اللفة', 'Labels with gaps': 'ملصقات بينها فراغ', 'Black mark': 'علامة سوداء', 'Continuous roll': 'لفة متصلة',
+    'Gap between labels': 'الفراغ بين الملصقات', 'Resolution': 'الدقة', 'Shift right': 'إزاحة لليمين', 'Shift down': 'إزاحة للأسفل',
+    'Paper': 'الورق', 'Size': 'المقاس', 'Custom': 'مخصص', 'Width': 'العرض', 'Height': 'الارتفاع', 'Margin': 'الهامش',
+    'Code': 'الرمز', 'Code type': 'نوع الرمز', 'Barcode (Code 128)': 'باركود (Code 128)',
+    'Barcode (EAN-13 when possible)': 'باركود (EAN-13 إن أمكن)', 'QR code': 'رمز QR', 'No code': 'بدون رمز',
+    'Widest bar': 'أقصى عرض للخط', 'dots': 'نقطة', 'It shrinks by itself when the barcode would not fit.': 'يصغر تلقائياً إذا لم يتسع الباركود.',
+    'Bar height': 'ارتفاع الخطوط', '0 = automatic': '0 = تلقائي',
+    'Show the number under the code': 'إظهار الرقم تحت الرمز', 'Number size': 'حجم الرقم',
+    'QR position': 'موضع رمز QR', 'Left': 'يسار', 'Right': 'يمين', 'QR content': 'محتوى رمز QR',
+    '{barcode}, {name} and {price} are replaced.': 'يتم استبدال {barcode} و {name} و {price}.',
+    'Text': 'النصوص', 'Show item name': 'إظهار اسم المادة', 'Name size': 'حجم الاسم', 'Name lines': 'عدد أسطر الاسم', 'Bold name': 'اسم عريض',
+    'Show price': 'إظهار السعر', 'Show currency': 'إظهار العملة', 'Price size': 'حجم السعر', 'Bold price': 'سعر عريض',
+    'Show shop name': 'إظهار اسم المحل', 'Shop name': 'اسم المحل', 'Shop name size': 'حجم اسم المحل',
+    'Font': 'الخط', 'Smoother letters': 'حروف أنعم',
+    'Preview': 'المعاينة', 'Sample item': 'مادة تجريبية', 'Barcode': 'الباركود', 'Name': 'الاسم', 'Price': 'السعر', 'Currency': 'العملة',
+    'Print test label': 'طباعة ملصق تجريبي', 'Feed blank label': 'إخراج ملصق فارغ', 'Sent to the printer.': 'تم الإرسال إلى الطابعة.',
+    'The test uses the settings on screen, saved or not.': 'التجربة تستخدم الإعدادات الظاهرة على الشاشة، سواء حُفظت أم لا.',
+    'Allowed sites': 'المواقع المسموح لها', 'Add': 'إضافة', 'Remove': 'إزالة', 'No site yet.': 'لا يوجد موقع بعد.',
+    'Sites that may print through this computer. A new site asks for permission the first time it prints.':
+        'المواقع التي يُسمح لها بالطباعة من هذا الحاسوب. أي موقع جديد يطلب الإذن عند أول طباعة.',
+    'Profile name': 'اسم الإعداد', 'Delete this profile?': 'حذف هذا الإعداد؟', 'copy': 'نسخة',
+    'The agent is not answering.': 'البرنامج لا يستجيب.', 'Connected': 'متصل', 'bar': 'عرض الخط', 'cell': 'حجم الخانة',
+    'That is not a site address.': 'هذا ليس عنوان موقع.', 'Restart the agent for the new port to take effect.': 'أعد تشغيل البرنامج لتفعيل المنفذ الجديد.',
+};
+
+let lang = localStorage.getItem('lang') || ((navigator.language || '').startsWith('ar') ? 'ar' : 'en');
+const t = s => (lang === 'ar' && AR[s]) || s;
+const $ = id => document.getElementById(id);
+
+const PAPERS = [[50, 25], [40, 30], [40, 25], [38, 25], [30, 20], [50, 30], [58, 40], [60, 40], [100, 50]];
+const tspl = p => p.printer.mode === 'tspl';
+const bars = p => !['qr', 'none'].includes(p.layout.codeType);
+const pt = {type: 'number', min: 4, max: 40, step: 0.5, unit: 'pt'};
+
+const SECTIONS = [
+    {title: 'Printer', fields: [
+        {path: 'printer.name', label: 'Printer', type: 'select', options: () => printerOptions(), wide: true},
+        {path: 'printer.mode', label: 'Connection', type: 'select', wide: true,
+            options: [['tspl', 'Direct (TSPL), recommended'], ['driver', 'Through the Windows driver']],
+            hint: 'Direct gives the sharpest bars. Use the Windows driver only for printers that do not understand TSPL.'},
+        {path: 'printer.density', label: 'Darkness', type: 'number', min: 0, max: 15, step: 1, unit: '0–15', when: tspl},
+        {path: 'printer.speed', label: 'Speed', type: 'number', min: 1, max: 12, step: 1, unit: 'in/s', when: tspl},
+        {path: 'printer.direction', label: 'Orientation', type: 'select', numeric: true, options: [[1, 'Normal'], [0, 'Rotated 180°']], when: tspl},
+        {path: 'printer.media', label: 'Roll type', type: 'select', when: tspl,
+            options: [['gap', 'Labels with gaps'], ['blackmark', 'Black mark'], ['continuous', 'Continuous roll']]},
+        {path: 'printer.gapMm', label: 'Gap between labels', type: 'number', min: 0, max: 20, step: 0.5, unit: 'mm', when: p => tspl(p) && p.printer.media !== 'continuous'},
+        {path: 'printer.dpi', label: 'Resolution', type: 'select', numeric: true, options: [[203, '203 dpi'], [300, '300 dpi']]},
+        {path: 'printer.offsetXMm', label: 'Shift right', type: 'number', min: -20, max: 20, step: 0.5, unit: 'mm'},
+        {path: 'printer.offsetYMm', label: 'Shift down', type: 'number', min: -20, max: 20, step: 0.5, unit: 'mm'},
+    ]},
+    {title: 'Paper', fields: [
+        {label: 'Size', type: 'paper'},
+        {path: 'paper.widthMm', label: 'Width', type: 'number', min: 10, max: 120, step: 0.5, unit: 'mm'},
+        {path: 'paper.heightMm', label: 'Height', type: 'number', min: 8, max: 300, step: 0.5, unit: 'mm'},
+        {path: 'layout.marginMm', label: 'Margin', type: 'number', min: 0, max: 10, step: 0.5, unit: 'mm'},
+    ]},
+    {title: 'Code', fields: [
+        {path: 'layout.codeType', label: 'Code type', type: 'select', wide: true,
+            options: [['code128', 'Barcode (Code 128)'], ['auto', 'Barcode (EAN-13 when possible)'], ['qr', 'QR code'], ['none', 'No code']]},
+        {path: 'layout.moduleDots', label: 'Widest bar', type: 'number', min: 1, max: 8, step: 1, unit: 'dots', when: bars,
+            hint: 'It shrinks by itself when the barcode would not fit.'},
+        {path: 'layout.barcodeHeightMm', label: 'Bar height', type: 'number', min: 0, max: 100, step: 0.5, unit: 'mm', when: bars, hint: '0 = automatic'},
+        {path: 'layout.qrSide', label: 'QR position', type: 'select', options: [['left', 'Left'], ['right', 'Right']], when: p => p.layout.codeType === 'qr'},
+        {path: 'layout.qrContent', label: 'QR content', type: 'text', wide: true, ltr: true, when: p => p.layout.codeType === 'qr',
+            hint: '{barcode}, {name} and {price} are replaced.'},
+        {path: 'layout.showCodeText', label: 'Show the number under the code', type: 'check', newrow: true, when: p => p.layout.codeType !== 'none'},
+        {path: 'layout.codeTextFontPt', label: 'Number size', ...pt, when: p => p.layout.codeType !== 'none' && p.layout.showCodeText},
+    ]},
+    {title: 'Text', fields: [
+        {path: 'layout.showName', label: 'Show item name', type: 'check', newrow: true},
+        {path: 'layout.nameFontPt', label: 'Name size', ...pt, when: p => p.layout.showName},
+        {path: 'layout.nameMaxLines', label: 'Name lines', type: 'number', min: 1, max: 6, step: 1, when: p => p.layout.showName},
+        {path: 'layout.nameBold', label: 'Bold name', type: 'check', when: p => p.layout.showName},
+        {path: 'layout.showPrice', label: 'Show price', type: 'check', newrow: true},
+        {path: 'layout.priceFontPt', label: 'Price size', ...pt, when: p => p.layout.showPrice},
+        {path: 'layout.showCurrency', label: 'Show currency', type: 'check', when: p => p.layout.showPrice},
+        {path: 'layout.priceBold', label: 'Bold price', type: 'check', when: p => p.layout.showPrice},
+        {path: 'layout.showMarketName', label: 'Show shop name', type: 'check', newrow: true},
+        {path: 'layout.marketName', label: 'Shop name', type: 'text', when: p => p.layout.showMarketName},
+        {path: 'layout.marketFontPt', label: 'Shop name size', ...pt, when: p => p.layout.showMarketName},
+        {path: 'layout.fontFamily', label: 'Font', type: 'select', newrow: true, options: () => fontOptions()},
+        {path: 'layout.smoothText', label: 'Smoother letters', type: 'check'},
+    ]},
+];
+
+let settings = null, profile = null, printers = [], fonts = [], dirty = false, rules = [];
+let sample = {barcode: '6281234567895', name: 'باراسيتامول 500 ملغ أقراص', price: '2,500', currency: 'دينار'};
+try { sample = {...sample, ...JSON.parse(localStorage.getItem('sample') || '{}')}; } catch (e) { /* keep the default */ }
+
+const read = (o, path) => path.split('.').reduce((a, k) => a?.[k], o);
+function write(o, path, value) {
+    const keys = path.split('.');
+    const last = keys.pop();
+    keys.reduce((a, k) => a[k], o)[last] = value;
+}
+
+async function api(method, url, body) {
+    const r = await fetch(url, {
+        method,
+        headers: body ? {'Content-Type': 'application/json'} : {},
+        body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || r.statusText);
+    return data;
+}
+
+function el(tag, props = {}, ...children) {
+    const node = Object.assign(document.createElement(tag), props);
+    node.append(...children);
+    return node;
+}
+
+function printerOptions() {
+    const list = printers.map(p => [p.name, p.name + (p.offline ? ` (${t('offline')})` : '')]);
+    const current = profile.printer.name;
+    if (current && !printers.some(p => p.name === current)) list.unshift([current, `${current} (${t('not installed')})`]);
+    if (!current) list.unshift(['', t('Choose a printer')]);
+    return list;
+}
+
+function fontOptions() {
+    const list = fonts.includes(profile.layout.fontFamily) ? fonts : [profile.layout.fontFamily, ...fonts];
+    return list.map(f => [f, f]);
+}
+
+function option(value, label, selected) {
+    return el('option', {value, textContent: label, selected});
+}
+
+function buildForm() {
+    const form = $('form');
+    form.replaceChildren();
+    rules = [];
+    for (const section of SECTIONS) {
+        const grid = el('div', {className: 'fields'});
+        for (const f of section.fields) {
+            const row = el('label', {className: 'field' + (f.wide ? ' wide' : '') + (f.newrow ? ' newrow' : '') + (f.type === 'check' ? ' check' : '')});
+            const caption = el('span', {textContent: t(f.label)});
+            let input;
+            if (f.type === 'paper') {
+                input = el('select');
+                const now = `${profile.paper.widthMm}x${profile.paper.heightMm}`;
+                let known = false;
+                for (const [w, h] of PAPERS) {
+                    known = known || now === `${w}x${h}`;
+                    input.append(option(`${w}x${h}`, `${w} × ${h} mm`, now === `${w}x${h}`));
+                }
+                input.append(option('', t('Custom'), !known));
+                input.onchange = () => {
+                    if (!input.value) return;
+                    [profile.paper.widthMm, profile.paper.heightMm] = input.value.split('x').map(Number);
+                    changed(true);
+                };
+                row.append(caption, input);
+            } else if (f.type === 'check') {
+                input = el('input', {type: 'checkbox', checked: !!read(profile, f.path)});
+                input.onchange = () => { write(profile, f.path, input.checked); changed(); };
+                row.append(input, caption);
+            } else if (f.type === 'select') {
+                input = el('select');
+                const value = read(profile, f.path);
+                const options = typeof f.options === 'function' ? f.options() : f.options;
+                for (const [v, label] of options) input.append(option(v, typeof f.options === 'function' ? label : t(label), String(v) === String(value)));
+                input.onchange = () => { write(profile, f.path, f.numeric ? Number(input.value) : input.value); changed(); };
+                row.append(caption, input);
+            } else {
+                input = el('input', {type: f.type, value: read(profile, f.path) ?? ''});
+                if (f.type === 'number') Object.assign(input, {min: f.min, max: f.max, step: f.step});
+                input.dir = f.type === 'number' || f.ltr ? 'ltr' : 'auto';
+                input.oninput = () => {
+                    if (f.type === 'number') {
+                        if (input.value === '' || isNaN(+input.value)) return;
+                        write(profile, f.path, +input.value);
+                    } else write(profile, f.path, input.value);
+                    changed();
+                };
+                row.append(caption, f.unit ? el('span', {className: 'unit'}, input, el('em', {textContent: t(f.unit)})) : input);
+            }
+            if (f.hint) row.append(el('small', {textContent: t(f.hint)}));
+            if (f.when) rules.push([row, f.when]);
+            grid.append(row);
+        }
+        form.append(el('section', {}, el('h2', {textContent: t(section.title)}), grid));
+    }
+    applyRules();
+}
+
+function applyRules() {
+    for (const [row, when] of rules) row.hidden = !when(profile);
+}
+
+function buildProfiles() {
+    const select = $('profiles');
+    select.replaceChildren(...settings.profiles.map(p =>
+        option(p.id, p.name + (p.id === settings.activeProfileId ? `  ·  ${t('In use')}` : ''), p.id === profile.id)));
+    $('pUse').disabled = profile.id === settings.activeProfileId;
+    $('pDelete').disabled = settings.profiles.length < 2;
+}
+
+function buildSites() {
+    const list = $('sites');
+    list.replaceChildren(...settings.allowedOrigins.map(origin => el('li', {},
+        el('code', {textContent: origin}),
+        el('button', {textContent: t('Remove'), onclick: () => {
+            settings.allowedOrigins = settings.allowedOrigins.filter(o => o !== origin);
+            buildSites();
+            markDirty();
+        }}))));
+    if (!settings.allowedOrigins.length) list.append(el('li', {}, el('span', {className: 'note', style: 'margin:0', textContent: t('No site yet.')})));
+}
+
+function translatePage() {
+    document.documentElement.lang = lang;
+    document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+    for (const node of document.querySelectorAll('[data-t]')) {
+        node.dataset.t = node.dataset.t || node.textContent.trim();
+        node.textContent = t(node.dataset.t);
+    }
+    $('lang').textContent = lang === 'ar' ? 'English' : 'العربية';
+    showState();
+}
+
+function showState(text) {
+    $('state').textContent = text || (dirty ? t('Unsaved changes') : '');
+    $('state').hidden = !$('state').textContent;
+    $('save').disabled = !dirty;
+}
+
+function markDirty() {
+    dirty = true;
+    showState();
+}
+
+function changed(rebuild) {
+    markDirty();
+    if (rebuild) buildForm(); else applyRules();
+    schedulePreview();
+}
+
+let previewTimer = 0, previewRun = 0;
+function schedulePreview() {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(preview, 120);
+}
+
+async function preview() {
+    const run = ++previewRun;
+    const warnings = $('warnings');
+    try {
+        const label = await api('POST', '/api/preview', {profile, item: sample});
+        if (run !== previewRun) return;
+        const img = $('preview');
+        img.src = label.png;
+        img.width = label.width;
+        img.hidden = false;
+        const names = {code128: 'Code 128', ean13: 'EAN-13', qr: 'QR'};
+        const parts = [`${profile.paper.widthMm} × ${profile.paper.heightMm} mm`, `${label.width} × ${label.height} ${t('dots')}`];
+        if (label.moduleDots) {
+            const mm = (label.moduleDots * 25.4 / label.dpi).toFixed(2);
+            parts.push(`${names[label.codeType]}, ${t(label.codeType === 'qr' ? 'cell' : 'bar')} ${label.moduleDots} ${t('dots')} (${mm} mm)`);
+        }
+        $('info').textContent = parts.join('  ·  ');
+        warnings.replaceChildren(...label.warnings.map(w => el('div', {className: 'msg warn', textContent: w})));
+    } catch (e) {
+        if (run !== previewRun) return;
+        $('preview').hidden = true;
+        $('info').textContent = '';
+        warnings.replaceChildren(el('div', {className: 'msg bad', textContent: e.message}));
+    }
+}
+
+function sampleItem() {
+    return {...sample, priceWithCurrency: [sample.price, sample.currency].filter(Boolean).join(' '), copies: 1};
+}
+
+async function act(button, work) {
+    const box = $('printMsg');
+    button.disabled = true;
+    box.replaceChildren();
+    try {
+        const result = await work();
+        box.replaceChildren(el('div', {className: 'msg good', textContent: t('Sent to the printer.')}),
+            ...(result.warnings || []).map(w => el('div', {className: 'msg warn', textContent: w})));
+    } catch (e) {
+        box.replaceChildren(el('div', {className: 'msg bad', textContent: e.message}));
+    } finally {
+        button.disabled = false;
+    }
+}
+
+async function save() {
+    try {
+        const keep = profile.id;
+        const result = await api('PUT', '/api/settings', settings);
+        settings = result.settings;
+        profile = settings.profiles.find(p => p.id === keep) || settings.profiles[0];
+        dirty = false;
+        buildProfiles();
+        buildForm();
+        buildSites();
+        showState(result.restartNeeded ? t('Restart the agent for the new port to take effect.') : t('Saved'));
+        setTimeout(() => { if (!dirty) showState(); }, 2500);
+        preview();
+    } catch (e) {
+        showState(e.message);
+    }
+}
+
+async function loadDevices() {
+    try {
+        printers = await api('GET', '/api/printers');
+        $('conn').className = 'pill ok';
+        $('conn').textContent = t('Connected');
+    } catch (e) {
+        $('conn').className = 'pill bad';
+        $('conn').textContent = t('The agent is not answering.');
+    }
+}
+
+async function start() {
+    translatePage();
+    try {
+        [settings, fonts] = await Promise.all([api('GET', '/api/settings'), api('GET', '/api/fonts')]);
+    } catch (e) {
+        $('conn').className = 'pill bad';
+        $('conn').textContent = t('The agent is not answering.');
+        return;
+    }
+    await loadDevices();
+    profile = settings.profiles.find(p => p.id === settings.activeProfileId) || settings.profiles[0];
+    for (const input of document.querySelectorAll('[data-sample]')) {
+        input.value = sample[input.dataset.sample] || '';
+        input.oninput = () => {
+            sample[input.dataset.sample] = input.value;
+            localStorage.setItem('sample', JSON.stringify(sample));
+            schedulePreview();
+        };
+    }
+    buildProfiles();
+    buildForm();
+    buildSites();
+    preview();
+}
+
+$('lang').onclick = () => {
+    lang = lang === 'ar' ? 'en' : 'ar';
+    localStorage.setItem('lang', lang);
+    translatePage();
+    if (!settings) return;
+    $('conn').textContent = t($('conn').classList.contains('ok') ? 'Connected' : 'The agent is not answering.');
+    buildProfiles();
+    buildForm();
+    buildSites();
+    preview();
+};
+$('save').onclick = save;
+$('profiles').onchange = () => {
+    profile = settings.profiles.find(p => p.id === $('profiles').value);
+    buildProfiles();
+    buildForm();
+    preview();
+};
+$('pUse').onclick = () => {
+    settings.activeProfileId = profile.id;
+    buildProfiles();
+    markDirty();
+};
+$('pNew').onclick = () => {
+    const name = prompt(t('Profile name'), `${profile.name} (${t('copy')})`);
+    if (!name) return;
+    const copy = JSON.parse(JSON.stringify(profile));
+    copy.id = Math.random().toString(16).slice(2, 10);
+    copy.name = name.trim();
+    settings.profiles.push(copy);
+    profile = copy;
+    buildProfiles();
+    buildForm();
+    markDirty();
+    preview();
+};
+$('pRename').onclick = () => {
+    const name = prompt(t('Profile name'), profile.name);
+    if (!name) return;
+    profile.name = name.trim();
+    buildProfiles();
+    markDirty();
+};
+$('pDelete').onclick = () => {
+    if (settings.profiles.length < 2 || !confirm(t('Delete this profile?'))) return;
+    settings.profiles = settings.profiles.filter(p => p !== profile);
+    if (settings.activeProfileId === profile.id) settings.activeProfileId = settings.profiles[0].id;
+    profile = settings.profiles[0];
+    buildProfiles();
+    buildForm();
+    markDirty();
+    preview();
+};
+$('siteAdd').onclick = () => {
+    let origin;
+    try {
+        origin = new URL($('siteInput').value.trim()).origin;
+    } catch (e) {
+        origin = '';
+    }
+    if (!/^https?:\/\//.test(origin)) return alert(t('That is not a site address.'));
+    if (!settings.allowedOrigins.includes(origin)) settings.allowedOrigins.push(origin);
+    $('siteInput').value = '';
+    buildSites();
+    markDirty();
+};
+$('test').onclick = () => act($('test'), () => api('POST', '/api/print', {profile, items: [sampleItem()]}));
+$('feed').onclick = () => act($('feed'), () => api('POST', '/api/feed', {profile}));
+window.addEventListener('beforeunload', e => { if (dirty) e.preventDefault(); });
+window.addEventListener('focus', async () => {
+    if (!settings) return;
+    await loadDevices();
+});
+
+start();
+</script>
+</body>
+</html>

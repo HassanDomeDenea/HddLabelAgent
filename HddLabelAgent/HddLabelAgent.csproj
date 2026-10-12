@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net10.0-windows</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <UseWindowsForms>true</UseWindowsForms>
+        <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+        <AssemblyName>HddLabelAgent</AssemblyName>
+        <RootNamespace>HddLabelAgent</RootNamespace>
+        <Version>1.0.0</Version>
+        <Product>HDD Label Agent</Product>
+        <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Kestrel + minimal APIs for the local HTTP endpoint the web app talks to. -->
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <PackageReference Include="ZXing.Net" Version="0.16.10" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <EmbeddedResource Include="wwwroot\**" />
+    </ItemGroup>
+
+</Project>
