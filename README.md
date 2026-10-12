@@ -28,30 +28,35 @@ site the user allows can print through it.
 - Windows 10 or 11, 64-bit.
 - A label printer installed in Windows. *Direct* mode needs a printer that understands TSPL
   (Xprinter, TSC, Gprinter and many others); *Windows driver* mode works with any printer.
-- To build: the [.NET 10 SDK](https://dotnet.microsoft.com/download). The published program needs
-  nothing installed.
+- Nothing else: the downloadable program carries its own .NET.
 
 **Tested hardware:** developed against an Xprinter XP-365B (203 dpi) with 50 × 25 mm gap labels in
 direct mode. Windows driver mode is implemented but has not been tried on a real printer yet.
 
 ## Getting started
 
-1. Build the program:
-
-   ```powershell
-   .\publish.ps1
-   ```
-
-   This produces `publish\HddLabelAgent.exe`, a single file of about 60 MB that runs on a computer
-   with no .NET installed.
-
-2. Copy `HddLabelAgent.exe` to the computer the printer is attached to and start it. An icon appears
-   near the clock.
+1. Download
+   [HddLabelAgent.exe](https://github.com/HassanDomeDenea/HddLabelAgent/releases/latest/download/HddLabelAgent.exe)
+   (about 60 MB, from the [latest release](https://github.com/HassanDomeDenea/HddLabelAgent/releases/latest))
+   onto the computer the printer is attached to. There is no installer: put the file in a folder
+   where it can stay, for example `C:\HddLabelAgent`.
+2. Start it. An icon appears near the clock.
 3. Double-click the icon. The settings page opens in the browser. Choose the printer and the paper
    size, press **Print test label**, adjust until it looks right, then **Save**.
 4. Right-click the icon and tick **Start with Windows**.
 
 Starting the program a second time does not start a second copy; it opens the settings page.
+
+The program is not code-signed, so the first start may show "Windows protected your PC". Choose
+**More info**, then **Run anyway**. Each release lists the file's SHA-256 so the download can be
+checked:
+
+```powershell
+Get-FileHash .\HddLabelAgent.exe -Algorithm SHA256
+```
+
+To update, exit the agent from its tray menu, replace the file with the new one and start it again.
+The settings are kept; they live in `%AppData%`, not next to the program.
 
 ## The settings page
 
@@ -140,10 +145,15 @@ use the printer directly anyway.
 
 ## Building and changing it
 
+Building needs the [.NET 10 SDK](https://dotnet.microsoft.com/download).
+
 ```powershell
 dotnet build HddLabelAgent\HddLabelAgent.csproj
 dotnet run --project HddLabelAgent
 ```
+
+`.\publish.ps1` makes the same single file the releases carry, in `publish\`. Pass `-Output` to put
+it somewhere else, for instance while an agent started from `publish\` is still running.
 
 The settings page is one file, `HddLabelAgent\wwwroot\index.html`, embedded in the program. To edit it
 without rebuilding, point the environment variable `HDDLABELAGENT_WWWROOT` at that folder before
@@ -163,5 +173,5 @@ starting the agent; the page is then read from disk on every request.
 
 ## License
 
-No license has been chosen yet. Until one is added, the code is published for reading and all rights
-are reserved.
+[MIT](LICENSE). The software it includes from other authors is listed in
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
